@@ -1,44 +1,42 @@
+// signal2.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
-#include <time.h>
 
-static volatile sig_atomic_t alarms_count = 0;
-static time_t start_time;
+/* set by handler when an alarm fires */
+static volatile sig_atomic_t ready_to_print = 0;
 
 void alarm_handler(int signum) {
-    (void)signum;
+    (void)signum;                  /* unused */
     printf("Hello World!\n");
-    alarms_count++;
-    alarm(5);                      /* keep ticking every 5 seconds */
-}
-
-void sigint_handler(int signum) {
-    (void)signum;
-    time_t end_time = time(NULL);
-    long secs = (long)(end_time - start_time);
-    printf("\nTuring was right!\n");
-    printf("Total alarms: %d\n", (int)alarms_count);
-    printf("Total time: %ld seconds\n", secs);
-    _exit(0);                      /* async-signal-safe exit */
+    fflush(stdout);
+    ready_to_print = 1;            /* tell main to print Turing message */
 }
 
 int main(void) {
-    start_time = time(NULL);
-
     if (signal(SIGALRM, alarm_handler) == SIG_ERR) {
-        perror("signal SIGALRM");
-        return 1;
-    }
-    if (signal(SIGINT, sigint_handler) == SIG_ERR) {
-        perror("signal SIGINT");
+        perror("signal");
         return 1;
     }
 
+    /* first alarm after 5 seconds */
     alarm(5);
 
+    /* run forever */
     for (;;) {
-        pause();                   /* sleep until a signal is handled */
+        /* wait for a signal (SIGALRM) */
+        pause();
+
+        if (ready_to_print) {
+            printf("Turing was right!\n");
+            fflush(stdout);
+            ready_to_print = 0;
+
+            /* schedule the next alarm in 5 seconds */
+            alarm(5);
+        }
     }
+
+    return 0;
 }
